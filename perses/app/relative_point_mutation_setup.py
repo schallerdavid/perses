@@ -566,10 +566,17 @@ class PointMutationExecutor(object):
         solvated_topology = modeller.getTopology()
         if box_dimensions:
             solvated_topology.setUnitCellDimensions(box_dimensions)
-        solvated_positions = modeller.getPositions()
+
+        solvated_system = self.system_generator.create_system(solvated_topology)
+
+        # minimize system
+        integrator = openmm.LangevinIntegrator(temperature, 1.0 / unit.picosecond, 2.0 * unit.femtoseconds)
+        simulation = app.Simulation(solvated_topology, solvated_system, integrator)
+        simulation.context.setPositions(modeller.getPositions())
+        simulation.minimizeEnergy()
+        solvated_positions = simulation.context.getState(getPositions=True).getPositions()
 
         # Canonicalize the solvated positions: turn tuples into np.array
         solvated_positions = unit.quantity.Quantity(value=np.array([list(atom_pos) for atom_pos in solvated_positions.value_in_unit_system(unit.md_unit_system)]), unit=unit.nanometers)
-        solvated_system = self.system_generator.create_system(solvated_topology)
 
         return solvated_topology, solvated_positions, solvated_system
